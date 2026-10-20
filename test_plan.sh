@@ -48,9 +48,23 @@ assert spawn['x'] == -5450 and spawn['z'] == 7790, 'Spawn coordinates mismatch'
 print('✓ world_map.json structure, Luanti border bounds (-30912..30927), and New York spawn verified.')
 "
 
-# 4. Check Lua syntax and mock runtime of init.lua
+# 4. Check Lua syntax and mapgen hooks in init.lua
 echo "[Test 4] Verifying Lua syntax and mapgen hooks in init.lua..."
 lua -e "
+biomegen = {
+    calc_biome_from_noise = function(heat, humid, pos)
+        return {
+            name = (heat < 10) and 'icesheet' or 'grassland',
+            node_stone = 1, node_top = 2, depth_top = 1,
+            node_filler = 3, depth_filler = 2, node_water = 4,
+            depth_water_top = 0, node_water_top = 4, node_riverbed = 1,
+            depth_riverbed = 1, min_pos = {x=-31000, y=-31000, z=-31000},
+            max_pos = {x=31000, y=31000, z=31000}, vertical_blend = 0,
+        }
+    end,
+    generate_all = function() end
+}
+
 minetest = {
     set_mapgen_setting = function() end,
     get_current_modname = function() return 'flatearth_mapgen' end,
@@ -64,15 +78,26 @@ minetest = {
         }
     end,
     get_perlin_map = function() return {} end,
-    register_on_mods_loaded = function() end,
+    register_on_mods_loaded = function(fn) fn() end,
     register_on_generated = function() end,
     register_chatcommand = function() end,
     register_on_newplayer = function() end,
     register_on_respawnplayer = function() end,
     register_on_joinplayer = function() end,
+    get_content_id = function(n) return 1 end,
 }
 dofile('init.lua')
-print('✓ init.lua parsed and loaded cleanly with Luanti mock environment.')
+
+-- Verify biomegen hook returns valid table with .name
+local b_ice = biomegen.calc_biome_from_noise(50, 50, {x=0, y=10, z=30001})
+assert(type(b_ice) == 'table', 'Ice wall biome must be a table!')
+assert(b_ice.name ~= nil, 'Ice wall biome name must not be nil!')
+
+local b_gl = biomegen.calc_biome_from_noise(50, 50, {x=0, y=10, z=30500})
+assert(type(b_gl) == 'table', 'Grassland biome must be a table!')
+assert(b_gl.name ~= nil, 'Grassland biome name must not be nil!')
+
+print('✓ init.lua parsed and biomegen hook verified without nil table index.')
 "
 
 # 5. Verify Flat Earth mechanics & geometry (New York, Ice Wall, Winter Biome, Grasslands)

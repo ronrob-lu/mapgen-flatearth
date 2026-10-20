@@ -230,21 +230,27 @@ minetest.register_on_mods_loaded(function()
         local orig_calc = biomegen.calc_biome_from_noise
         biomegen.calc_biome_from_noise = function(heat, humid, pos)
             local r = math.sqrt(pos.x * pos.x + pos.z * pos.z)
+            local c_heat, c_humid = heat, humid
+
             if r >= ICE_WALL_R_MIN and r <= ICE_WALL_R_MAX then
-                return "icesheet"
+                c_heat, c_humid = 0, 75
             elseif r > ICE_WALL_R_MAX and r <= WINTER_R_MAX then
-                return "tundra"
+                c_heat, c_humid = 0, 75
             elseif r > WINTER_R_MAX then
-                return "grassland"
+                c_heat, c_humid = 55, 60
+            else
+                local wx, wz = 0, 0
+                if pnoise_warp_x and pnoise_warp_z then
+                    wx = pnoise_warp_x:get_2d({x = pos.x, y = pos.z})
+                    wz = pnoise_warp_z:get_2d({x = pos.x, y = pos.z})
+                end
+                local _, h, hu, _ = get_smooth_terrain_info(pos.x + wx, pos.z + wz)
+                c_heat, c_humid = h, hu
             end
 
-            local wx, wz = 0, 0
-            if pnoise_warp_x and pnoise_warp_z then
-                wx = pnoise_warp_x:get_2d({x = pos.x, y = pos.z})
-                wz = pnoise_warp_z:get_2d({x = pos.x, y = pos.z})
+            if orig_calc then
+                return orig_calc(c_heat, c_humid, pos)
             end
-            local _, c_heat, c_humid, _ = get_smooth_terrain_info(pos.x + wx, pos.z + wz)
-            return orig_calc(c_heat, c_humid, pos)
         end
 
         if debug and debug.getupvalue and debug.setupvalue and biomegen.get_biome_at_index then
@@ -403,7 +409,7 @@ minetest.register_on_generated(function(minp, maxp, seed)
     end
 
     -- Biomegen populates surfaces with native flora, trees, and ores
-    if biomegen then
+    if biomegen and minp.y <= 60 then
         biomegen.generate_all(data, area, voxelmanip, minp, maxp, seed)
     else
         voxelmanip:set_data(data)
@@ -429,6 +435,8 @@ local major_locations = {
     ["tokyo"]      = {x = 14500,  z = 2800,   name = "Tokyo (Japan)"},
     ["sydney"]     = {x = 15200,  z = -16500, name = "Sydney (Australia)"},
     ["icewall"]    = {x = 0,      z = 30001,  name = "The Great Ice Wall (100 blocks high!)"},
+    ["argentina_icewall"] = {x = -23801, z = 18263, name = "Ice Wall facing Argentina (100 blocks high!)"},
+    ["patagonia"]  = {x = -19040, z = 14610,  name = "Patagonia / Southern Argentina"},
     ["winter"]     = {x = 0,      z = 30100,  name = "Winter Biome (Beyond the Ice Wall)"},
     ["grasslands"] = {x = 0,      z = 30500,  name = "Green Grasslands (Edge of Known World)"},
     ["border"]     = {x = 0,      z = 30927,  name = "Luanti World Border"},
@@ -593,6 +601,30 @@ minetest.register_chatcommand("icewall", {
         if player then
             teleport_player_to(player, major_locations["icewall"])
             return true, "Teleported to the Great Ice Wall!"
+        end
+        return false, "Player not found."
+    end
+})
+
+minetest.register_chatcommand("argentina_icewall", {
+    description = "Teleport to the Great Ice Wall directly facing Argentina / Patagonia",
+    func = function(name)
+        local player = minetest.get_player_by_name(name)
+        if player then
+            teleport_player_to(player, major_locations["argentina_icewall"])
+            return true, "Teleported to the Great Ice Wall facing Argentina (X=-23801, Z=18263)!"
+        end
+        return false, "Player not found."
+    end
+})
+
+minetest.register_chatcommand("patagonia", {
+    description = "Teleport to Patagonia / Southern Argentina",
+    func = function(name)
+        local player = minetest.get_player_by_name(name)
+        if player then
+            teleport_player_to(player, major_locations["patagonia"])
+            return true, "Teleported to Patagonia / Southern Argentina (X=-19040, Z=14610)!"
         end
         return false, "Player not found."
     end
